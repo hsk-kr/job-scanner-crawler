@@ -1,5 +1,7 @@
 import Indeed from './lib/puppeteer/indeed';
 import { delay } from './lib/puppeteer/common';
+import { isReactEnglishPosition, recordJobInfosAsFile } from './lib/filter';
+import { JobInfo } from './types/indeed';
 
 (async () => {
   const puppeteer = require('puppeteer-extra');
@@ -27,30 +29,36 @@ import { delay } from './lib/puppeteer/common';
     main: mainPage,
     api: apiPage,
   });
-
-  await indeed.navigateHome();
-  setTimeout(async () => {
-    await indeed.search({
-      keyword: 'React developer',
-      location: 'Deutschland',
-    });
-    const count = await indeed.getJobCount();
-    console.log('count', count);
-
-    for await (const jobInfo of indeed.generatorAllJobs()) {
-      if (!jobInfo) {
-        console.log('failed to fetch job info');
-        continue;
-      }
-      jobInfo.jobDescription = '';
-      console.log(jobInfo);
-      await delay(Math.random() * 1500 + 500);
-    }
-
-    console.log('Done!');
-  }, 3000);
+  const reactJobs: JobInfo[] = [];
 
   setInterval(() => {
     indeed.closeModalIfThereIs();
   }, 1000);
+
+  await indeed.navigateHome();
+  await indeed.search({
+    keyword: 'React developer',
+    location: 'Deutschland',
+  });
+
+  const jsonFileName = `./react-jobs${new Date().getTime()}.json`;
+
+  for await (const jobInfo of indeed.generatorAllJobs()) {
+    if (!jobInfo || !jobInfo.jobTitle || !jobInfo.jobDescription) {
+      console.log('failed to fetch job info');
+      continue;
+    }
+
+    console.log(`searching ${jobInfo.idx}th job...`);
+
+    if (isReactEnglishPosition(jobInfo)) {
+      reactJobs.push({ ...jobInfo, jobDescription: '' });
+      console.log('English position found!');
+      await recordJobInfosAsFile(jsonFileName, reactJobs);
+    }
+
+    await delay(Math.random() * 2500 + 1000);
+  }
+
+  console.log('Done!');
 })();

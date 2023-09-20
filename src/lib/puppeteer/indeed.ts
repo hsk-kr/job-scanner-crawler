@@ -136,6 +136,15 @@ class Indeed {
           return;
         }
 
+        const generateUrl = (jobId: string) => {
+          const currentUrl = this.page.url();
+          const queryString = new URLSearchParams(
+            currentUrl.substring(currentUrl.indexOf('?') + 1)
+          );
+          queryString.set('vjk', jobId);
+          return `${this.jobsURL}?${queryString.toString()}`;
+        };
+
         const jobInfo = {
           jobTitle:
             jsonData.body.jobInfoWrapperModel.jobInfoModel.jobInfoHeaderModel
@@ -143,11 +152,10 @@ class Indeed {
           companyName:
             jsonData.body.jobInfoWrapperModel.jobInfoModel.jobInfoHeaderModel
               .companyName,
-          jobDescription: removeTags(
+          jobDescription:
             jsonData.body.jobInfoWrapperModel.jobInfoModel
-              .sanitizedJobDescription
-          ),
-          url: `${this.homeURL}?vjk=${jobId}`,
+              .sanitizedJobDescription,
+          url: generateUrl(jobId),
         };
 
         resolve(jobInfo);
@@ -300,34 +308,30 @@ class Indeed {
    */
   async navigatePage(page: number) {
     try {
-      const pageButton = await this.page.waitForSelector(
-        `nav[aria-label=pagination] a[aria-label="${page}"]`
-      );
+      await repeatActionUntilBeingNavigated(this.page, async () => {
+        try {
+          const pageButton = await this.page.waitForSelector(
+            `nav[aria-label=pagination] a[aria-label="${page}"]`
+          );
+          await pageButton.click();
+        } catch (e) {
+          console.error(
+            `${this.navigatePage.name} [repeatActionUntilBeingNavigated]`,
+            e
+          );
+        }
+      });
 
-      try {
-        await repeatActionUntilBeingNavigated(this.page, async () => {
-          try {
-            await pageButton.click();
-          } catch (e) {
-            console.error(
-              `${this.navigatePage.name} [repeatActionUntilBeingNavigated]`,
-              e
-            );
-          }
-        });
-
-        return true;
-      } catch (e) {
-        // when it is not a current page, do nothing
-        console.error(this.navigatePage.name, e);
-        await this.page.evaluate(() => window.stop());
-        return this.navigatePage(page);
-      }
-
-      return false;
+      return true;
     } catch (e) {
+      // when it is not a current page, do nothing
       console.error(this.navigatePage.name, e);
-      throw new Error(e);
+      try {
+        await this.page.goto(this.page.url());
+      } catch (e) {
+        console.error(`${this.navigatePage.name}`, e, `this.page.goto error`);
+      }
+      return this.navigatePage(page);
     }
   }
 
