@@ -12,8 +12,8 @@ const repeatActionUntilBeingNavigated = (
   page: Page,
   cb: VoidFunction | (() => Promise<any>),
   options: {
-    try: number;
-    interval: number;
+    try?: number;
+    interval?: number;
   } = {
     try: 10,
     interval: 1000,
@@ -27,6 +27,12 @@ const repeatActionUntilBeingNavigated = (
       clearInterval(tmId);
       resolve();
     });
+
+    // execute the first call right away
+    if (count > 0) {
+      count--;
+      cb();
+    }
 
     tmId = setInterval(async () => {
       if (count === 0) {

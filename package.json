@@ -13,9 +13,11 @@
   "author": "hsk.coder@gmail.com",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.5.0",
     "puppeteer": "^21.2.1"
   },
   "devDependencies": {
+    "@types/axios": "^0.14.0",
     "@types/puppeteer": "^7.0.4",
     "nodemon": "^3.0.1",
     "rimraf": "^5.0.1",
