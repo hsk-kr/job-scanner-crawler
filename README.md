@@ -12,3 +12,6 @@ It also has some issues at the moment
 
 I found out that finding English positions that I wanted took me so much time and at some point, it gave my motivation away.
 This is why I created this project. Currently, the code is written only for my purpose. (React English positions in Germany).
+
+The app generates a json file that has matched jobs with the options written in the code.
+Although You can see by yourself, you can also use [a viewer](https://github.com/hsk-kr/job-scanner-json-webviewer) I created.
