@@ -11,39 +11,47 @@ const delay = (ms: number) => {
 const repeatActionUntilBeingNavigated = (
   page: Page,
   cb: VoidFunction | (() => Promise<any>),
-  options: {
+  options?: {
     try?: number;
     interval?: number;
-  } = {
-    try: 10,
-    interval: 1000,
   }
 ) => {
-  return new Promise<void>((resolve) => {
-    let count = options.try;
+  return new Promise<void>((resolve, reject) => {
+    let count = options?.try ?? 10;
+    const interval = options?.interval ?? 1000;
     let tmId: NodeJS.Timeout | undefined = undefined;
 
-    page.waitForNavigation().then(() => {
-      clearInterval(tmId);
-      resolve();
-    });
+    page
+      .waitForNavigation()
+      .then(() => {
+        clearInterval(tmId);
+        resolve();
+      })
+      .catch((e) => reject(e));
 
     // execute the first call right away
     if (count > 0) {
       count--;
-      cb();
+      setTimeout(cb, 0);
     }
 
     tmId = setInterval(async () => {
       if (count === 0) {
         clearInterval(tmId);
-        throw new Error('The page has not been navigated.');
+        reject(new Error('The page has not been navigated.'));
+        return;
       }
 
-      cb();
       count--;
-    }, options.interval);
+      cb();
+    }, interval);
   });
 };
 
-export { delay, repeatActionUntilBeingNavigated };
+const removeTags = (html: string): string => {
+  if (!html) return '';
+
+  return html.replace(/(<([^>]+)>)/gi, '');
+};
+
+export { delay, repeatActionUntilBeingNavigated, removeTags };

@@ -1,9 +1,17 @@
-import puppeteer from 'puppeteer';
 import Indeed from './lib/puppeteer/indeed';
 import { delay } from './lib/puppeteer/common';
-import axios from 'axios';
 
 (async () => {
+  const puppeteer = require('puppeteer-extra');
+
+  // Add stealth plugin and use defaults (all tricks to hide puppeteer usage)
+  const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+  puppeteer.use(StealthPlugin());
+
+  // Add adblocker plugin to block all ads and trackers (saves bandwidth)
+  const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker');
+  puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
+
   // Launch the browser and open a new blank page
   const browser = await puppeteer.launch({
     headless: false,
@@ -24,20 +32,18 @@ import axios from 'axios';
   setTimeout(async () => {
     await indeed.search({
       keyword: 'React developer',
-      location: 'Frankfurt Am Main',
-      distance: '50',
+      location: 'Deutschland',
     });
     const count = await indeed.getJobCount();
     console.log('count', count);
 
-    // indeed.addSecurityCheckHandler(async () => {
-    //   await indeed.capture();
-    //   await page.close();
-    //   process.exit();
-    // });
-
-    for await (const { title, description, idx } of indeed.generatorAllJobs()) {
-      console.log({ title, description: '', idx });
+    for await (const jobInfo of indeed.generatorAllJobs()) {
+      if (!jobInfo) {
+        console.log('failed to fetch job info');
+        continue;
+      }
+      jobInfo.jobDescription = '';
+      console.log(jobInfo);
       await delay(Math.random() * 1500 + 500);
     }
 

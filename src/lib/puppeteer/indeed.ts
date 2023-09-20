@@ -1,10 +1,14 @@
 import path from 'path';
 import { ElementHandle, Page } from 'puppeteer';
-import { repeatActionUntilBeingNavigated } from './common';
-import { DistanceSearchOption } from '../../types/indeed';
+import { removeTags, repeatActionUntilBeingNavigated } from './common';
+import {
+  DistanceSearchOption,
+  JobInfo,
+  ViewJobResponse,
+} from '../../types/indeed';
 
-const INDEED_HOME_URL = 'https://www.indeed.com/';
-const INDEED_JOBS_URL = 'https://de.indeed.com/jobs';
+const INDEED_HOME_URL = 'https://de.indeed.com/';
+
 const SECURITY_CHECK_STRING = 'Checking if the site connection is secure';
 
 class Indeed {
@@ -12,6 +16,7 @@ class Indeed {
   private apiPage: Page; // requests api
   private homeURL: string;
   private jobsURL: string;
+  private viewJobsAPIURL: string;
   private screenshopDirPath: string;
   private securityCheckString: string;
   private tmSecurityCheck?: NodeJS.Timeout;
@@ -36,7 +41,8 @@ class Indeed {
     this.page = pages.main;
     this.apiPage = pages.api;
     this.homeURL = options?.homeURL ?? INDEED_HOME_URL;
-    this.jobsURL = options?.jobsURL ?? INDEED_JOBS_URL;
+    this.jobsURL = `${this.homeURL}jobs`;
+    this.viewJobsAPIURL = `${this.homeURL}viewjob`;
     this.securityCheckString =
       options?.securityCheckString ?? SECURITY_CHECK_STRING;
     this.screenshopDirPath = this.screenshopDirPath ?? './';
@@ -102,35 +108,54 @@ class Indeed {
   }
 
   /**
-   * Retrieve a text of job title in the job description section and returns it
-   * @returns Job title
+   * opens a api link and retrieve necessary data and returns them
+   * @param jobId JobId
+   * @returns returns job informatino
    */
-  async getJobTitleText() {
-    try {
-      const jobTitle = await this.page.waitForSelector(
-        'h2.jobsearch-JobInfoHeader-title'
-      );
-      return await jobTitle.evaluate((el) => el.textContent);
-    } catch (e) {
-      console.error(this.getJobTitleText.name, e);
-      throw new Error(e);
-    }
-  }
+  async getJobInfo(jobId: string) {
+    return new Promise<JobInfo | null>(async (resolve) => {
+      try {
+        const queryString = new URLSearchParams({
+          jk: jobId,
+          from: 'hp',
+          viewType: 'embedded',
+          spa: '1',
+          hidecmpheader: '0',
+          hostrendertype: 'federated',
+          hostId: 'homepage',
+        }).toString();
+        const url = `${this.viewJobsAPIURL}?${queryString}`;
 
-  /**
-   * Retrieve a text of job description in the job description section and returns it
-   * @returns Job description
-   */
-  async getJobDescriptionText() {
-    try {
-      const jobDescription = await this.page.waitForSelector(
-        '#jobDescriptionText'
-      );
-      return await jobDescription.evaluate((el) => el.textContent);
-    } catch (e) {
-      console.error(this.getJobDescriptionText.name, e);
-      throw new Error(e);
-    }
+        await this.apiPage.goto(url);
+
+        const pre = await this.apiPage.waitForSelector('pre');
+        const strData = await pre.evaluate((el) => el.textContent);
+        const jsonData = JSON.parse(strData) as ViewJobResponse;
+        if (jsonData.status !== 'success') {
+          resolve(null);
+          return;
+        }
+
+        const jobInfo = {
+          jobTitle:
+            jsonData.body.jobInfoWrapperModel.jobInfoModel.jobInfoHeaderModel
+              .jobTitle,
+          companyName:
+            jsonData.body.jobInfoWrapperModel.jobInfoModel.jobInfoHeaderModel
+              .companyName,
+          jobDescription: removeTags(
+            jsonData.body.jobInfoWrapperModel.jobInfoModel
+              .sanitizedJobDescription
+          ),
+          url: `${this.homeURL}?vjk=${jobId}`,
+        };
+
+        resolve(jobInfo);
+      } catch (e) {
+        console.error(`${this.getJobInfo.name}`, e);
+        resolve(null);
+      }
+    });
   }
 
   /**
@@ -146,7 +171,7 @@ class Indeed {
       const splitText = text.trim().split(/\s/g);
 
       for (let i = 0; i < splitText.length; i++) {
-        const count = Number(splitText[i]);
+        const count = Number(splitText[i].replace(/,/g, ''));
 
         if (!Number.isNaN(count)) {
           return count;
@@ -195,23 +220,30 @@ class Indeed {
     }
 
     let previousUrl = this.page.url();
+    let previousApiUrl = this.apiPage.url();
     this.tmSecurityCheck = setInterval(async () => {
-      if (previousUrl !== this.page.url()) {
-        previousUrl = this.page.url();
-        return;
+      const pageUrl = this.page.url();
+      const apiPageUrl = this.apiPage.url();
+
+      if (previousUrl !== pageUrl || previousApiUrl !== apiPageUrl) {
+        // When the page stays on the same page before.
+        const source = await this.page.content();
+        const apiSource = await this.apiPage.content();
+
+        const idx =
+          source.indexOf(this.securityCheckString) +
+          apiSource.indexOf(this.securityCheckString);
+        if (idx >= 0) {
+          if (!isSecurityCheckSite) cb();
+
+          isSecurityCheckSite = true;
+        } else {
+          isSecurityCheckSite = false;
+        }
       }
 
-      // When the page stays on the same page before.
-      const source = await this.page.content();
-
-      const idx = source.indexOf(this.securityCheckString);
-      if (idx >= 0) {
-        if (!isSecurityCheckSite) cb();
-
-        isSecurityCheckSite = true;
-      } else {
-        isSecurityCheckSite = false;
-      }
+      previousUrl = pageUrl;
+      previousApiUrl = apiPageUrl;
     }, options.interval);
   }
 
@@ -226,55 +258,15 @@ class Indeed {
    * Returns generator that interates through jobs on the current page
    */
   async *generatorJobList() {
-    let jobTitles = await this.getJobTitles();
-
-    const jobCardClick = async (idx: number) => {
-      const jobCard = await this.getJobCardFromJobTitle(jobTitles[idx]);
-
-      await jobCard.click();
-
-      try {
-        await repeatActionUntilBeingNavigated(this.page, async () => {
-          try {
-            await jobCard.click();
-          } catch (e) {
-            console.error(`${this.generatorJobList.name}`, e);
-          }
-        });
-      } catch {
-        // as navigation is sometimes failed,
-        // when the error happens, just keep searching for jobs.
-      }
-    };
+    const jobTitles = await this.getJobTitles();
 
     // As the first job card is selected by default, skip the first item.
     for (let i = 1; i < jobTitles.length; i++) {
+      const jobId = await getJobIdFromJobTitle(jobTitles[i]);
       try {
-        yield {
-          title: await this.getJobTitleText(),
-          description: await this.getJobDescriptionText(),
-          url: this.getCurrentUrl(),
-        };
-
-        await jobCardClick(i);
+        yield await this.getJobInfo(jobId);
       } catch (e) {
-        // When the error happens, retry after refreshing it.
-        console.error(`${this.generatorJobList.name}`, e);
-        this.page.reload();
-        await (() =>
-          new Promise<void>((resolve) => {
-            this.page.waitForNavigation().then(() => resolve());
-          }))();
-
-        // After refreshing the page, as the html elements are updated, it gets jobTitle again.
-        jobTitles = await this.getJobTitles();
-
-        // Somehow, if there is no item to access more, breaks the loop.
-        if (i >= jobTitles.length) {
-          break;
-        }
-
-        i--;
+        console.log(`Failed to fetch ${jobId}`);
       }
     }
   }
@@ -283,6 +275,7 @@ class Indeed {
    * Returns generator that interates through all jobs
    */
   async *generatorAllJobs() {
+    let pageNumber = 1;
     let idx = 0;
     let hasNextPage = true;
 
@@ -291,52 +284,49 @@ class Indeed {
         yield {
           ...jobInfo,
           idx: idx++,
+          pageNumber,
         };
       }
 
-      hasNextPage = await this.nextPage();
+      pageNumber++;
+      hasNextPage = await this.navigatePage(pageNumber);
     }
   }
 
   /**
    * Navigate to the next page
+   * @param page the page number has to be shown up on the page
    * @returns if the current page is the last page, it returns true, otherwise it returns false.
    */
-  async nextPage() {
+  async navigatePage(page: number) {
     try {
-      const nav = await this.page.waitForSelector('nav[aria-label=pagination]');
-      const paginationButtons = await nav.$$('div');
+      const pageButton = await this.page.waitForSelector(
+        `nav[aria-label=pagination] a[aria-label="${page}"]`
+      );
 
-      for (let i = 0; i < paginationButtons.length; i++) {
-        // If it is not the last page
-        if (i === paginationButtons.length - 1) break;
+      try {
+        await repeatActionUntilBeingNavigated(this.page, async () => {
+          try {
+            await pageButton.click();
+          } catch (e) {
+            console.error(
+              `${this.navigatePage.name} [repeatActionUntilBeingNavigated]`,
+              e
+            );
+          }
+        });
 
-        try {
-          // if it has a button element, it is a current page.
-          await paginationButtons[i].waitForSelector('button', {
-            timeout: 100,
-          });
-
-          await repeatActionUntilBeingNavigated(this.page, async () => {
-            try {
-              await paginationButtons[i + 1].click();
-            } catch (e) {
-              console.error(
-                `${this.nextPage.name} [repeatActionUntilBeingNavigated]`,
-                e
-              );
-            }
-          });
-
-          return true;
-        } catch {
-          // when it is not a current page, do nothing
-        }
+        return true;
+      } catch (e) {
+        // when it is not a current page, do nothing
+        console.error(this.navigatePage.name, e);
+        await this.page.evaluate(() => window.stop());
+        return this.navigatePage(page);
       }
 
       return false;
     } catch (e) {
-      console.error(this.nextPage.name, e);
+      console.error(this.navigatePage.name, e);
       throw new Error(e);
     }
   }
@@ -417,9 +407,7 @@ const getJobIdFromJobTitle = async (
   element: ElementHandle<HTMLSpanElement>
 ) => {
   try {
-    return await element.evaluate((el) =>
-      el.id.substring(`jobTitle-`.length + 1)
-    );
+    return await element.evaluate((el) => el.id.substring(`jobTitle-`.length));
   } catch (e) {
     console.error(getJobIdFromJobTitle.name, e);
     throw new Error(e);
