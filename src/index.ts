@@ -3,6 +3,15 @@ import { delay } from './lib/puppeteer/common';
 import { isReactEnglishPosition, recordJobInfosAsFile } from './lib/filter';
 import { JobInfo } from './types/indeed';
 
+const args = process.argv.slice(2); // Except node and entry paths
+
+if (args.length !== 2) {
+  console.log('Usage: node index [KEYWORD] [LOCATION]');
+  console.log('Example: node index react.js "Frankfurt am Main"');
+  process.exit();
+}
+
+// Main logic
 (async () => {
   const puppeteer = require('puppeteer-extra');
 
@@ -37,8 +46,8 @@ import { JobInfo } from './types/indeed';
 
   await indeed.navigateHome();
   await indeed.search({
-    keyword: 'React developer',
-    location: 'Deutschland',
+    keyword: args[0],
+    location: args[1],
   });
 
   const jsonFileName = `./react-jobs${new Date().getTime()}.json`;
