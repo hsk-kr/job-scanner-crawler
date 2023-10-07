@@ -42,6 +42,44 @@ const isReactEnglishPosition = (jobInfo: JobInfo) => {
     if (isGermanTitle) throw 'is a German position';
 
     // language
+    let isGerman =
+      countWord(jobDescription, 'wir ') >= 2 ||
+      countWord(jobDescription, 'du ') >= 5;
+    isGerman = isGerman && jobDescription.indexOf('international') === -1;
+    isGerman = isGerman && jobDescription.indexOf('german is a plus') === -1;
+    if (isGerman) throw 'is a German position';
+
+    return true;
+  } catch (e) {
+    console.log(e);
+    return false;
+  }
+};
+
+/**
+ *! This matches personal perference, the logic will be generalized later.
+ */
+const isJuniorFrontendEnglishPosition = (jobInfo: JobInfo) => {
+  const jobTitle = jobInfo.jobTitle.toLowerCase();
+  const jobDescription = removeTags(jobInfo.jobDescription).toLowerCase();
+
+  try {
+    // ignore lead and senior positions
+    const isJuniorPosition = jobTitle.indexOf('junior') >= 0;
+    if (!isJuniorPosition) throw 'is not a junior position';
+
+    // find a frontend position
+    const isFrontPosition = jobTitle.indexOf('front') >= 0;
+    const isReactPosition = jobTitle.indexOf('react') >= 0;
+    const isGermanTitle = jobTitle.indexOf('Entwickler') >= 0;
+    const isReactNativePosition = jobTitle.indexOf('react native') >= 0;
+    const hasReactInJd = jobDescription.indexOf('react') >= 0;
+    if ((!isFrontPosition && !isReactPosition) || !hasReactInJd)
+      throw 'not a front position';
+    if (isReactNativePosition) throw 'is a react native position';
+    if (isGermanTitle) throw 'is a German position';
+
+    // language
     let isGerman = countWord(jobDescription, 'wir ') >= 2;
     isGerman = isGerman && jobDescription.indexOf('international') === -1;
     isGerman = isGerman && jobDescription.indexOf('german is a plus') === -1;
@@ -54,4 +92,8 @@ const isReactEnglishPosition = (jobInfo: JobInfo) => {
   }
 };
 
-export { recordJobInfosAsFile, isReactEnglishPosition };
+export {
+  recordJobInfosAsFile,
+  isReactEnglishPosition,
+  isJuniorFrontendEnglishPosition,
+};
