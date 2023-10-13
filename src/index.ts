@@ -1,14 +1,51 @@
 import Indeed from './lib/puppeteer/indeed';
 import { delay } from './lib/puppeteer/common';
-import { isReactEnglishPosition, recordJobInfosAsFile } from './lib/filter';
-import { JobInfo } from './types/indeed';
+import {
+  isInternshipPosition,
+  isJuniorReactPosition,
+  recordJobInfosAsFile,
+} from './lib/filter';
+import {
+  DistanceSearchOption,
+  JobInfo,
+  JobType,
+  isDistanceSearchOptionType,
+} from './types/indeed';
+
+const showCommandGuideAndExit = () => {
+  console.log(
+    'Usage: node index KEYWORD LOCATION ("intern" | "junior-react") [distance 10 | 25 | 35 | 50 | 75 | 100]'
+  );
+  console.log('Example: node index react.js "Frankfurt am Main" intern 50');
+  process.exit();
+};
 
 const args = process.argv.slice(2); // Except node and entry paths
+let distanceSearchOption: DistanceSearchOption | undefined = undefined;
+let jobType: JobType;
 
-if (args.length !== 2) {
-  console.log('Usage: node index [KEYWORD] [LOCATION]');
-  console.log('Example: node index react.js "Frankfurt am Main"');
-  process.exit();
+// validate the number of minimum arguments
+if (args.length < 3) {
+  showCommandGuideAndExit();
+}
+
+// validate job type
+switch (args[2]) {
+  case JobType.INTERN:
+    break;
+  case JobType.JUNIOR_REACT:
+    jobType = args[2].toUpperCase() as JobType;
+    break;
+  default:
+    showCommandGuideAndExit();
+}
+
+// validate job distance if there is
+if (isDistanceSearchOptionType(args[4])) {
+  distanceSearchOption = args[4];
+} else if (args[4] !== undefined) {
+  // if the argument exists and is not a valid type
+  showCommandGuideAndExit();
 }
 
 // Main logic
@@ -33,6 +70,8 @@ if (args.length !== 2) {
     width: 1440,
     height: 900,
   });
+  // If the tab isn't active, it doesn't manipulate doms in the joblist page(main page).
+  await mainPage.bringToFront();
 
   const indeed = new Indeed({
     main: mainPage,
@@ -48,6 +87,7 @@ if (args.length !== 2) {
   await indeed.search({
     keyword: args[0],
     location: args[1],
+    distance: distanceSearchOption,
   });
 
   const jsonFileName = `./react-jobs${new Date().getTime()}.json`;
@@ -60,9 +100,20 @@ if (args.length !== 2) {
 
     console.log(`searching ${jobInfo.idx}th job...`);
 
-    if (isReactEnglishPosition(jobInfo)) {
+    let isMatch = false;
+
+    switch (jobType) {
+      case JobType.INTERN:
+        isMatch = isInternshipPosition(jobInfo);
+        break;
+      case JobType.JUNIOR_REACT:
+        isMatch = isJuniorReactPosition(jobInfo);
+        break;
+    }
+
+    if (isMatch) {
       reactJobs.push({ ...jobInfo, jobDescription: '' });
-      console.log('English position found!');
+      console.log(`${jobType} position found!`);
       await recordJobInfosAsFile(jsonFileName, reactJobs);
     }
 
@@ -70,4 +121,5 @@ if (args.length !== 2) {
   }
 
   console.log('Done!');
+  process.exit();
 })();

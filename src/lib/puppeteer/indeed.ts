@@ -307,32 +307,34 @@ class Indeed {
    * @returns if the current page is the last page, it returns true, otherwise it returns false.
    */
   async navigatePage(page: number) {
-    try {
-      await repeatActionUntilBeingNavigated(this.page, async () => {
-        try {
-          const pageButton = await this.page.waitForSelector(
-            `nav[aria-label=pagination] a[aria-label="${page}"]`
-          );
-          await pageButton.click();
-        } catch (e) {
-          console.error(
-            `${this.navigatePage.name} [repeatActionUntilBeingNavigated]`,
-            e
-          );
-        }
-      });
-
-      return true;
-    } catch (e) {
-      // when it is not a current page, do nothing
-      console.error(this.navigatePage.name, e);
+    return new Promise<boolean>(async (resolve) => {
       try {
-        await this.page.goto(this.page.url());
+        await repeatActionUntilBeingNavigated(this.page, async () => {
+          try {
+            const pageButton = await this.page.waitForSelector(
+              `nav[aria-label=pagination] a[aria-label="${page}"]`
+            );
+            await pageButton.click();
+            resolve(true);
+          } catch (e) {
+            console.error(
+              `${this.navigatePage.name} [repeatActionUntilBeingNavigated]`,
+              e
+            );
+            resolve(false);
+          }
+        });
       } catch (e) {
-        console.error(`${this.navigatePage.name}`, e, `this.page.goto error`);
+        // when it is not a current page, do nothing
+        console.error(this.navigatePage.name, e);
+        try {
+          await this.page.goto(this.page.url());
+        } catch (e) {
+          console.error(`${this.navigatePage.name}`, e, `this.page.goto error`);
+        }
+        resolve(this.navigatePage(page));
       }
-      return this.navigatePage(page);
-    }
+    });
   }
 
   /**

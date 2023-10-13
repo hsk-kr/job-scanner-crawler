@@ -20,7 +20,7 @@ const countWord = (str: string, word: string) => {
 /**
  *! This matches personal perference, the logic will be generalized later.
  */
-const isReactEnglishPosition = (jobInfo: JobInfo) => {
+const isJuniorReactPosition = (jobInfo: JobInfo) => {
   const jobTitle = jobInfo.jobTitle.toLowerCase();
   const jobDescription = removeTags(jobInfo.jobDescription).toLowerCase();
 
@@ -33,13 +33,36 @@ const isReactEnglishPosition = (jobInfo: JobInfo) => {
     // find a frontend position
     const isFrontPosition = jobTitle.indexOf('front') >= 0;
     const isReactPosition = jobTitle.indexOf('react') >= 0;
-    const isGermanTitle = jobTitle.indexOf('Entwickler') >= 0;
-    const isReactNativePosition = jobTitle.indexOf('react native') >= 0;
     const hasReactInJd = jobDescription.indexOf('react') >= 0;
-    if ((!isFrontPosition && !isReactPosition) || !hasReactInJd)
+
+    if ((!isFrontPosition && !isReactPosition) || !hasReactInJd) {
       throw 'not a front position';
-    if (isReactNativePosition) throw 'is a react native position';
-    if (isGermanTitle) throw 'is a German position';
+    }
+
+    return true;
+  } catch (e) {
+    console.log(e);
+    return false;
+  }
+};
+
+/**
+ *! This matches personal perference, the logic will be generalized later.
+ */
+const isInternshipPosition = (jobInfo: JobInfo) => {
+  const jobTitle = jobInfo.jobTitle.toLowerCase();
+  const jobDescription = removeTags(jobInfo.jobDescription).toLowerCase();
+
+  try {
+    // ignore lead and senior positions
+    const isSeniorPosition = jobTitle.indexOf('senior') >= 0;
+    const isLeadPosition = jobTitle.indexOf('lead') >= 0;
+    if (isSeniorPosition || isLeadPosition) throw 'senior or lead position';
+
+    // find a frontend position
+    const isInternshipPosition =
+      jobTitle.indexOf('intern') >= 0 || jobDescription.indexOf('intern') >= 0;
+    if (!isInternshipPosition) throw 'not a internship position';
 
     // language
     let isGerman =
@@ -56,44 +79,4 @@ const isReactEnglishPosition = (jobInfo: JobInfo) => {
   }
 };
 
-/**
- *! This matches personal perference, the logic will be generalized later.
- */
-const isJuniorFrontendEnglishPosition = (jobInfo: JobInfo) => {
-  const jobTitle = jobInfo.jobTitle.toLowerCase();
-  const jobDescription = removeTags(jobInfo.jobDescription).toLowerCase();
-
-  try {
-    // ignore lead and senior positions
-    const isJuniorPosition = jobTitle.indexOf('junior') >= 0;
-    if (!isJuniorPosition) throw 'is not a junior position';
-
-    // find a frontend position
-    const isFrontPosition = jobTitle.indexOf('front') >= 0;
-    const isReactPosition = jobTitle.indexOf('react') >= 0;
-    const isGermanTitle = jobTitle.indexOf('Entwickler') >= 0;
-    const isReactNativePosition = jobTitle.indexOf('react native') >= 0;
-    const hasReactInJd = jobDescription.indexOf('react') >= 0;
-    if ((!isFrontPosition && !isReactPosition) || !hasReactInJd)
-      throw 'not a front position';
-    if (isReactNativePosition) throw 'is a react native position';
-    if (isGermanTitle) throw 'is a German position';
-
-    // language
-    let isGerman = countWord(jobDescription, 'wir ') >= 2;
-    isGerman = isGerman && jobDescription.indexOf('international') === -1;
-    isGerman = isGerman && jobDescription.indexOf('german is a plus') === -1;
-    if (isGerman) throw 'is a German position';
-
-    return true;
-  } catch (e) {
-    console.log(e);
-    return false;
-  }
-};
-
-export {
-  recordJobInfosAsFile,
-  isReactEnglishPosition,
-  isJuniorFrontendEnglishPosition,
-};
+export { recordJobInfosAsFile, isJuniorReactPosition, isInternshipPosition };
