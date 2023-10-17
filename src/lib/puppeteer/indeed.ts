@@ -396,12 +396,6 @@ class Indeed {
       this.page.goto(searchUrl);
     });
   }
-
-  async capture() {
-    await this.page.screenshot({
-      path: path.join(this.screenshopDirPath, 'tmp.jpg'),
-    });
-  }
 }
 
 /**

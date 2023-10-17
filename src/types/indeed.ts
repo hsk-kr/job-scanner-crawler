@@ -36,5 +36,9 @@ export interface JobInfo {
 
 export enum JobType {
   INTERN = 'intern',
-  JUNIOR_REACT = 'junior_react',
+  JUNIOR_REACT = 'junior-react',
 }
+
+const jobTypes = Object.values(JobType);
+
+export const isJobType = (value: any) => jobTypes.includes(value);

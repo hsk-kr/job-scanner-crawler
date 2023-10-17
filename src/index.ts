@@ -10,6 +10,7 @@ import {
   JobInfo,
   JobType,
   isDistanceSearchOptionType,
+  isJobType,
 } from './types/indeed';
 
 const showCommandGuideAndExit = () => {
@@ -20,33 +21,31 @@ const showCommandGuideAndExit = () => {
   process.exit();
 };
 
-const args = process.argv.slice(2); // Except node and entry paths
-let distanceSearchOption: DistanceSearchOption | undefined = undefined;
-let jobType: JobType;
+const scannerArgs = process.argv.slice(2); // Except node and entry paths
+const MINIMUM_ARGUMENTS = 3;
 
-// validate the number of minimum arguments
-if (args.length < 3) {
+if (scannerArgs.length < MINIMUM_ARGUMENTS) {
   showCommandGuideAndExit();
 }
 
-// validate job type
-switch (args[2]) {
-  case JobType.INTERN:
-    break;
-  case JobType.JUNIOR_REACT:
-    jobType = args[2].toUpperCase() as JobType;
-    break;
-  default:
+const [keyword, location, jobType, distance] = scannerArgs as [
+  string,
+  string,
+  JobType,
+  DistanceSearchOption | undefined
+];
+
+const exitIfJobTypeOrDistanceIsInvalid = () => {
+  const invalidJobType = !isJobType(jobType);
+  const invalidDistance =
+    distance !== undefined && !isDistanceSearchOptionType(distance);
+
+  if (invalidJobType || invalidDistance) {
     showCommandGuideAndExit();
-}
+  }
+};
 
-// validate job distance if there is
-if (isDistanceSearchOptionType(args[4])) {
-  distanceSearchOption = args[4];
-} else if (args[4] !== undefined) {
-  // if the argument exists and is not a valid type
-  showCommandGuideAndExit();
-}
+exitIfJobTypeOrDistanceIsInvalid();
 
 // Main logic
 (async () => {
@@ -85,12 +84,12 @@ if (isDistanceSearchOptionType(args[4])) {
 
   await indeed.navigateHome();
   await indeed.search({
-    keyword: args[0],
-    location: args[1],
-    distance: distanceSearchOption,
+    keyword,
+    location,
+    distance,
   });
 
-  const jsonFileName = `./react-jobs${new Date().getTime()}.json`;
+  const jsonFileName = `./${keyword}${new Date().getTime()}.json`;
 
   for await (const jobInfo of indeed.generatorAllJobs()) {
     if (!jobInfo || !jobInfo.jobTitle || !jobInfo.jobDescription) {
