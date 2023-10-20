@@ -2,7 +2,7 @@ import fs from 'fs';
 import { JobInfo } from '../types/indeed';
 import { removeTags } from './puppeteer/common';
 
-const recordJobInfosAsFile = async (filePath: string, jobInfos: JobInfo[]) => {
+const saveJobInfosAsFile = async (filePath: string, jobInfos: JobInfo[]) => {
   return await fs.writeFileSync(filePath, JSON.stringify(jobInfos));
 };
 
@@ -79,4 +79,4 @@ const isInternshipPosition = (jobInfo: JobInfo) => {
   }
 };
 
-export { recordJobInfosAsFile, isJuniorReactPosition, isInternshipPosition };
+export { saveJobInfosAsFile, isJuniorReactPosition, isInternshipPosition };

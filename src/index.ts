@@ -3,7 +3,7 @@ import { delay } from './lib/puppeteer/common';
 import {
   isInternshipPosition,
   isJuniorReactPosition,
-  recordJobInfosAsFile,
+  saveJobInfosAsFile,
 } from './lib/filter';
 import {
   DistanceSearchOption,
@@ -47,8 +47,7 @@ const exitIfJobTypeOrDistanceIsInvalid = () => {
 
 exitIfJobTypeOrDistanceIsInvalid();
 
-// Main logic
-(async () => {
+const createIndeedInstance = async () => {
   const puppeteer = require('puppeteer-extra');
 
   // Add stealth plugin and use defaults (all tricks to hide puppeteer usage)
@@ -76,28 +75,50 @@ exitIfJobTypeOrDistanceIsInvalid();
     main: mainPage,
     api: apiPage,
   });
-  const reactJobs: JobInfo[] = [];
 
+  return indeed;
+};
+
+const repeatCloseModalIfThereIs = (indeed: Indeed) => {
   setInterval(() => {
     indeed.closeModalIfThereIs();
   }, 1000);
+};
 
-  await indeed.navigateHome();
+const createSaveJobInfos = (fileName: string) => {
+  return (jobInfos: JobInfo[]) => {
+    saveJobInfosAsFile(fileName, jobInfos);
+  };
+};
+
+const generateFileNameWithKeyword = (keyword: string) => {
+  return `./${keyword}${new Date().getTime()}.json`;
+};
+
+// Main logic
+(async () => {
+  const indeed = await createIndeedInstance();
+  const reactJobs: JobInfo[] = [];
+
+  repeatCloseModalIfThereIs(indeed);
+
   await indeed.search({
     keyword,
     location,
     distance,
   });
 
-  const jsonFileName = `./${keyword}${new Date().getTime()}.json`;
+  const saveJobInfos = createSaveJobInfos(generateFileNameWithKeyword(keyword));
 
   for await (const jobInfo of indeed.generatorAllJobs()) {
-    if (!jobInfo || !jobInfo.jobTitle || !jobInfo.jobDescription) {
+    const isDataEmpty =
+      !jobInfo || !jobInfo.jobTitle || !jobInfo.jobDescription;
+    if (isDataEmpty) {
       console.log('failed to fetch job info');
       continue;
     }
 
-    console.log(`searching ${jobInfo.idx}th job...`);
+    console.log(`searching ${jobInfo.idx + 1}th job...`);
 
     let isMatch = false;
 
@@ -113,7 +134,7 @@ exitIfJobTypeOrDistanceIsInvalid();
     if (isMatch) {
       reactJobs.push({ ...jobInfo, jobDescription: '' });
       console.log(`${jobType} position found!`);
-      await recordJobInfosAsFile(jsonFileName, reactJobs);
+      await saveJobInfos(reactJobs);
     }
 
     await delay(Math.random() * 2500 + 1000);
